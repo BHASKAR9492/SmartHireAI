@@ -1,0 +1,3 @@
+We are looking for a Python Developer with experience in Flask, SQL, Machine Learning,
+Data Analysis, and REST APIs. The candidate should have knowledge of Git, problem solving,
+and basic data structures.

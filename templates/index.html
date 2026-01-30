@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SmartHireAI Dashboard</title>
+</head>
+<body>
+    <h1>SmartHireAI - Resume Screening</h1>
+
+    <!-- Upload Form -->
+    <form method="POST" enctype="multipart/form-data">
+        <label>Upload Job Description (TXT):</label><br>
+        <input type="file" name="jd" required><br><br>
+
+        <label>Upload Resumes (PDF/DOCX):</label><br>
+        <input type="file" name="resumes" multiple required><br><br>
+
+        <input type="submit" value="Run AI Screening">
+    </form>
+
+    <!-- Results Table -->
+    {% if results %}
+    <h2>Results:</h2>
+    <table border="1" cellpadding="5">
+        <tr>
+            <th>Resume</th>
+            <th>Match Score (%)</th>
+        </tr>
+        {% for r in results %}
+        <tr>
+            <td>{{ r.name }}</td>
+            <td>{{ r.score }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <p>Results saved to <b>results.xlsx</b></p>
+
+    <!-- Download Excel Button -->
+    <a href="/download">
+        <button type="button">Download Excel</button>
+    </a>
+    {% endif %}
+</body>
+</html>
