@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartHireAI - Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+    <h2 class="mb-4">Resume Match Results</h2>
+
+    {% if results %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Resume Name</th>
+                <th>Score (%)</th>
+                <th>Matched Skills</th>
+                <th>Missing Skills</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for res in results %}
+            <tr>
+                <td>{{ res.name }}</td>
+                <td>{{ res.score }}</td>
+                <td>{{ res.matched_skills }}</td>
+                <td>{{ res.missing_skills }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="{{ url_for('download_results') }}" class="btn btn-success mt-3">Download Excel</a>
+    {% else %}
+    <p>No results available yet.</p>
+    {% endif %}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

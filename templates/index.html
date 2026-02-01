@@ -1,43 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>SmartHireAI Dashboard</title>
+    <meta charset="UTF-8">
+    <title>SmartHireAI – Resume Screening</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <h1>SmartHireAI - Resume Screening</h1>
+<div class="container mt-5">
+    <div class="card p-4 shadow-sm mb-4">
+        <h4>📄 Upload Resumes</h4>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <input type="file" name="resumes" class="form-control" multiple required>
+            </div>
+            <button type="submit" class="btn btn-primary">Process Resumes</button>
+        </form>
+    </div>
 
-    <!-- Upload Form -->
-    <form method="POST" enctype="multipart/form-data">
-        <label>Upload Job Description (TXT):</label><br>
-        <input type="file" name="jd" required><br><br>
-
-        <label>Upload Resumes (PDF/DOCX):</label><br>
-        <input type="file" name="resumes" multiple required><br><br>
-
-        <input type="submit" value="Run AI Screening">
-    </form>
-
-    <!-- Results Table -->
     {% if results %}
-    <h2>Results:</h2>
-    <table border="1" cellpadding="5">
-        <tr>
-            <th>Resume</th>
-            <th>Match Score (%)</th>
-        </tr>
-        {% for r in results %}
-        <tr>
-            <td>{{ r.name }}</td>
-            <td>{{ r.score }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    <p>Results saved to <b>results.xlsx</b></p>
-
-    <!-- Download Excel Button -->
-    <a href="/download">
-        <button type="button">Download Excel</button>
-    </a>
+    <div class="card p-4 shadow-sm">
+        <h4>✅ Resume Match Results</h4>
+        <table class="table table-bordered mt-3">
+            <thead>
+                <tr>
+                    <th>Candidate</th>
+                    <th>Score</th>
+                    <th>Matched Skills</th>
+                    <th>Missing Skills</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in results %}
+                <tr>
+                    <td>{{ r.name }}</td>
+                    <td>{{ r.score }}%</td>
+                    <td>{{ r.matched_skills }}</td>
+                    <td>{{ r.missing_skills }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <a href="/download" class="btn btn-success mt-3">Download Excel</a>
+    </div>
     {% endif %}
+</div>
 </body>
 </html>

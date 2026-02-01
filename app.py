@@ -1,96 +1,137 @@
 import os
-import re
-import PyPDF2
-import docx2txt
-from flask import Flask, request, render_template, redirect, send_file
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from flask import Flask, request, render_template, redirect, send_file, url_for, flash
 import pandas as pd
+from werkzeug.utils import secure_filename
+from PyPDF2 import PdfReader
+import docx2txt
 
-# ---------- FLASK APP ----------
+UPLOAD_FOLDER = "resumes"
+JD_FILE = "job_description/jd.txt"
+RESULT_FILE = "results.xlsx"
+ALLOWED_EXTENSIONS = {"pdf", "docx"}
+
+ADMIN_PASSWORD = "admin123"
+RESULTS_TOKEN = "Ab12Xy9Q"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs("job_description", exist_ok=True)
+
 app = Flask(__name__)
+app.secret_key = "smarthireai-secret"
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RESUME_FOLDER = os.path.join(BASE_DIR, "resumes")
-JD_FOLDER = os.path.join(BASE_DIR, "job_description")
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ---------- HELPER FUNCTIONS ----------
-def clean_text(text):
-    text = text.lower()
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
+def extract_text(file_path):
+    if file_path.endswith(".pdf"):
+        reader = PdfReader(file_path)
+        return " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    elif file_path.endswith(".docx"):
+        return docx2txt.process(file_path)
+    return ""
 
-def extract_pdf_text(file_path):
-    text = ""
-    with open(file_path, "rb") as file:
-        reader = PyPDF2.PdfReader(file)
-        for page in reader.pages:
-            text += page.extract_text()
-    return clean_text(text)
+def extract_skills(text):
+    SKILLS = {"python","java","sql","c++","excel","power bi","tableau","machine learning","deep learning","data analysis"}
+    text_words = set(word.lower() for word in text.split())
+    return SKILLS.intersection(text_words)
 
-def extract_docx_text(file_path):
-    return clean_text(docx2txt.process(file_path))
-
-def extract_job_description(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        return clean_text(f.read())
-
-def calculate_match_score(jd_text, resume_text):
-    vectorizer = TfidfVectorizer()
-    vectors = vectorizer.fit_transform([jd_text, resume_text])
-    score = cosine_similarity(vectors[0], vectors[1])[0][0]
-    return round(score * 100, 2)
-
-# ---------- ROUTES ----------
-@app.route("/", methods=["GET", "POST"])
-def index():
+def calculate_scores(jd_text, resume_texts, resume_names):
     results = []
+    jd_skills = extract_skills(jd_text)
+    for name, resume_text in zip(resume_names, resume_texts):
+        resume_skills = extract_skills(resume_text)
+        matched_skills = jd_skills.intersection(resume_skills)
+        missing_skills = jd_skills - resume_skills
+        if len(jd_skills) == 0:
+            score = 0
+        else:
+            score = (len(matched_skills) / len(jd_skills)) * 100
+        results.append({
+            "name": name,
+            "score": round(score,2),
+            "matched_skills": ", ".join(matched_skills),
+            "missing_skills": ", ".join(missing_skills)
+        })
+    return results
+
+def save_results(results):
+    df = pd.DataFrame(results)
+    df.to_excel(RESULT_FILE, index=False)
+
+@app.route("/", methods=["GET","POST"])
+def index():
     if request.method == "POST":
-        # Save uploaded JD
-        jd_file = request.files["jd"]
-        jd_path = os.path.join(JD_FOLDER, "jd.txt")
-        jd_file.save(jd_path)
+        files = request.files.getlist("resumes")
+        if not files or files[0].filename == "":
+            flash("No files selected", "danger")
+            return redirect(request.url)
 
-        # Save uploaded resumes
-        uploaded_files = request.files.getlist("resumes")
-        for file in uploaded_files:
-            save_path = os.path.join(RESUME_FOLDER, file.filename)
-            file.save(save_path)
+        resume_texts = []
+        resume_names = []
+        for file in files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+                file.save(path)
+                resume_names.append(filename)
+                resume_texts.append(extract_text(path))
 
-        # Extract JD text
-        jd_text = extract_job_description(jd_path)
+        if os.path.exists(JD_FILE):
+            with open(JD_FILE, "r", encoding="utf-8") as f:
+                jd_text = f.read()
+        else:
+            flash("Job Description not found. Ask admin to upload.", "warning")
+            return redirect(request.url)
 
-        # Calculate scores for all resumes
-        for resume_file in os.listdir(RESUME_FOLDER):
-            path = os.path.join(RESUME_FOLDER, resume_file)
-            if resume_file.endswith(".pdf"):
-                text = extract_pdf_text(path)
-            elif resume_file.endswith(".docx"):
-                text = extract_docx_text(path)
-            else:
-                continue
-            score = calculate_match_score(jd_text, text)
-            results.append({"name": resume_file, "score": score})
+        results = calculate_scores(jd_text, resume_texts, resume_names)
+        save_results(results)
+        flash("Results saved to results.xlsx", "success")
+        return render_template("index.html", results=results)
 
-        # Sort by score
-        results = sorted(results, key=lambda x: x["score"], reverse=True)
+    return render_template("index.html", results=None)
 
-        # Save to Excel
-        df = pd.DataFrame(results)
-        df.to_excel(os.path.join(BASE_DIR, "results.xlsx"), index=False)
-
-    return render_template("index.html", results=results)
-
-# ---------- DOWNLOAD ROUTE ----------
 @app.route("/download")
-def download():
-    file_path = os.path.join(BASE_DIR, "results.xlsx")
-    if os.path.exists(file_path):
-        return send_file(file_path, as_attachment=True)
+def download_results():
+    if os.path.exists(RESULT_FILE):
+        return send_file(RESULT_FILE, as_attachment=True)
     else:
-        return "No results file found. Run AI Screening first."
+        flash("Results file not found", "danger")
+        return redirect(url_for("index"))
 
-# ---------- RUN APP ----------
+@app.route("/admin", methods=["GET","POST"])
+def admin_panel():
+    if request.method == "POST":
+        password = request.form.get("password")
+        if password != ADMIN_PASSWORD:
+            flash("Invalid password", "danger")
+            return redirect(request.url)
+        jd_file = request.files.get("jd_file")
+        if jd_file and jd_file.filename != "":
+            jd_file.save(JD_FILE)
+            flash("Job Description updated", "success")
+        if os.path.exists(RESULT_FILE):
+            df = pd.read_excel(RESULT_FILE)
+            total_candidates = len(df)
+            shortlisted = df[df["score"]>=60].to_dict(orient="records")
+            all_candidates = df.to_dict(orient="records")
+        else:
+            total_candidates = 0
+            shortlisted = []
+            all_candidates = []
+        return render_template("admin.html", total_candidates=total_candidates,
+                               shortlisted=shortlisted, all_candidates=all_candidates)
+    return render_template("admin_login.html")
+
+@app.route(f"/results/{RESULTS_TOKEN}")
+def results_page():
+    if os.path.exists(RESULT_FILE):
+        df = pd.read_excel(RESULT_FILE)
+        results = df.to_dict(orient="records")
+    else:
+        results = []
+    return render_template("results.html", results=results)
+
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
