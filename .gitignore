@@ -1,5 +1,17 @@
+# Python
 __pycache__/
-results.xlsx
-venv/
-resumes/*
+*.pyc
 
+# Virtual environment
+venv/
+
+# Uploaded resumes & outputs
+resumes/
+results.xlsx
+
+# OS / editor
+.DS_Store
+desktop.ini
+
+# Render / runtime
+runtime.txt
